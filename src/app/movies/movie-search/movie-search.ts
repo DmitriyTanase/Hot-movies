@@ -6,6 +6,7 @@ const DEBOUNCE_MS = 300;
 @Component({
   selector: 'app-movie-search',
   templateUrl: './movie-search.html',
+  host: { class: 'block' },
 })
 export class MovieSearch {
   private readonly movieService = inject(MovieService);

@@ -82,7 +82,8 @@ describe('MovieDetail', () => {
     harness.fixture.detectChanges();
     expect(el.querySelector('[aria-busy="true"]')).not.toBeNull();
     expect(el.querySelector('a')?.getAttribute('href')).toBe('/');
-    expect(el.textContent).toContain('Back to movies');
+    expect(el.querySelector('a')?.textContent?.trim()).toBe('Back to movies');
+    expect(el.querySelector('a svg')?.getAttribute('aria-hidden')).toBe('true');
     detailReq().flush(details());
     await settle();
   });
