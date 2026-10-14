@@ -1,0 +1,91 @@
+<section class="mx-auto max-w-4xl p-4">
+  @if (validId() === undefined) {
+    <p role="alert" class="rounded-md bg-red-50 p-4 text-red-800">Invalid movie id</p>
+  } @else if (details.isLoading()) {
+    <div aria-busy="true" class="flex flex-col gap-4 md:flex-row">
+      <div class="aspect-[2/3] w-full animate-pulse rounded-lg bg-slate-200 md:w-80"></div>
+      <div class="flex-1 space-y-3">
+        <div class="h-8 w-2/3 animate-pulse rounded bg-slate-200"></div>
+        <div class="h-4 w-full animate-pulse rounded bg-slate-200"></div>
+        <div class="h-4 w-5/6 animate-pulse rounded bg-slate-200"></div>
+      </div>
+    </div>
+  } @else if (error(); as message) {
+    <div role="alert" class="rounded-md bg-red-50 p-4 text-red-800">
+      <p>{{ message }}</p>
+      <button
+        type="button"
+        (click)="retry()"
+        class="mt-2 rounded-md bg-red-700 px-3 py-1.5 text-white hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+      >
+        Retry
+      </button>
+    </div>
+  } @else if (details.hasValue()) {
+    @let movie = details.value();
+    <article class="flex flex-col gap-6 md:flex-row">
+      @if (poster(); as src) {
+        <img
+          [src]="src"
+          [alt]="movie.title"
+          class="aspect-[2/3] w-full rounded-lg object-cover md:w-80"
+        />
+      } @else {
+        <div
+          class="flex aspect-[2/3] w-full items-center justify-center rounded-lg bg-slate-200 text-slate-500 md:w-80"
+        >
+          No poster
+        </div>
+      }
+      <div class="flex-1">
+        <h2 class="text-2xl font-bold text-slate-900">{{ movie.title }}</h2>
+        <p class="mt-3 text-slate-700">{{ movie.overview || 'No description available.' }}</p>
+        <dl class="mt-4 space-y-3">
+          <div>
+            <dt class="text-sm font-semibold text-slate-500">Genres</dt>
+            <dd>
+              @if (movie.genres.length) {
+                <ul class="mt-1 flex flex-wrap gap-2">
+                  @for (g of movie.genres; track g.id) {
+                    <li class="rounded-full bg-slate-200 px-3 py-1 text-sm text-slate-800">
+                      {{ g.name }}
+                    </li>
+                  }
+                </ul>
+              } @else {
+                No genres listed.
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="text-sm font-semibold text-slate-500">Rating</dt>
+            <dd>
+              @if (movie.vote_count === 0) {
+                Not rated
+              } @else {
+                {{ movie.vote_average | number: '1.1-1' }} / 10
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="text-sm font-semibold text-slate-500">Release date</dt>
+            <dd>
+              @if (movie.release_date) {
+                {{ movie.release_date | date }}
+              } @else {
+                Unknown
+              }
+            </dd>
+          </div>
+        </dl>
+      </div>
+    </article>
+  }
+
+  <a
+    routerLink="/"
+    class="mt-6 inline-block rounded-md px-3 py-1.5 text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+  >
+    Back to movies
+  </a>
+</section>

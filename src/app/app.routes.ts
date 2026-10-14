@@ -6,5 +6,10 @@ export const routes: Routes = [
     title: 'HOT Movies',
     loadComponent: () => import('./movies/movie-list/movie-list').then((m) => m.MovieList),
   },
+  {
+    path: 'movie/:id',
+    title: 'Movie details',
+    loadComponent: () => import('./movies/movie-detail/movie-detail').then((m) => m.MovieDetail),
+  },
   { path: '**', redirectTo: '' },
 ];

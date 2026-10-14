@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { Movie } from '../movie';
 import { MovieCard } from './movie-card';
 
@@ -16,6 +17,8 @@ function movie(overrides: Partial<Movie> = {}): Movie {
 }
 
 describe('MovieCard', () => {
+  beforeEach(() => TestBed.configureTestingModule({ providers: [provideRouter([])] }));
+
   const render = async (m: Movie) => {
     const fixture = TestBed.createComponent(MovieCard);
     fixture.componentRef.setInput('movie', m);
@@ -49,11 +52,17 @@ describe('MovieCard', () => {
     expect(el.textContent).toContain('No description available.');
   });
 
-  it('is a non-interactive article', async () => {
-    const el = await render(movie());
-    expect(el.querySelector('article')).not.toBeNull();
-    expect(el.querySelector('a')).toBeNull();
-    expect(el.querySelector('[href]')).toBeNull();
+  it('is a single link to the details page wrapping the content', async () => {
+    const el = await render(movie({ id: 7 }));
+    const links = el.querySelectorAll('a');
+    expect(links.length).toBe(1);
+    expect(links[0].getAttribute('href')).toBe('/movie/7');
+    expect(links[0].querySelector('img')).not.toBeNull();
+    expect(links[0].querySelector('h2')?.textContent).toContain('Heat');
+    expect(links[0].textContent).toContain('A heist movie.');
+    const h2 = links[0].querySelector('h2');
+    expect(h2?.id).toContain('7');
+    expect(links[0].getAttribute('aria-labelledby')).toBe(h2?.id);
     expect(el.querySelector('[tabindex]')).toBeNull();
     expect(el.querySelector('button')).toBeNull();
   });

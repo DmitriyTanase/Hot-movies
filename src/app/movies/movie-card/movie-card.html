@@ -1,20 +1,26 @@
-<article class="overflow-hidden rounded-lg bg-white shadow">
-  @if (poster(); as src) {
-    <img
-      [src]="src"
-      [alt]="movie().title"
-      loading="lazy"
-      class="aspect-[2/3] w-full object-cover"
-    />
-  } @else {
-    <div class="flex aspect-[2/3] w-full items-center justify-center bg-slate-200 text-slate-500">
-      No poster
+<a
+  [routerLink]="['/movie', movie().id]"
+  [attr.aria-labelledby]="titleId()"
+  class="block cursor-pointer overflow-hidden rounded-lg bg-white shadow transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700"
+>
+  <article>
+    @if (poster(); as src) {
+      <img
+        [src]="src"
+        [alt]="movie().title"
+        loading="lazy"
+        class="aspect-[2/3] w-full object-cover"
+      />
+    } @else {
+      <div class="flex aspect-[2/3] w-full items-center justify-center bg-slate-200 text-slate-500">
+        No poster
+      </div>
+    }
+    <div class="p-3">
+      <h2 [id]="titleId()" class="text-base font-semibold text-slate-900">{{ movie().title }}</h2>
+      <p class="mt-1 line-clamp-3 text-sm text-slate-600">
+        {{ movie().overview || 'No description available.' }}
+      </p>
     </div>
-  }
-  <div class="p-3">
-    <h2 class="text-base font-semibold text-slate-900">{{ movie().title }}</h2>
-    <p class="mt-1 line-clamp-3 text-sm text-slate-600">
-      {{ movie().overview || 'No description available.' }}
-    </p>
-  </div>
-</article>
+  </article>
+</a>
