@@ -29,3 +29,20 @@ works in isolation.
 
 Hooks and permission controls must be verified through the actual agent/tool
 execution path that they are intended to protect.
+
+## Validation caches must not undermine source-of-truth
+
+A passing validation command is not sufficient evidence when the underlying
+tool can reuse persistent compiled or transformed artifacts.
+
+For critical validation paths:
+
+- ensure source changes invalidate or bypass relevant caches;
+- investigate when observed test output does not match current source;
+- use a small reversible mutation check when cache correctness is genuinely
+  in doubt;
+- prefer deterministic project configuration over relying on developers to
+  manually clear caches.
+
+Never treat a green test run as authoritative when there is evidence that the
+executed code may differ from the current source.
