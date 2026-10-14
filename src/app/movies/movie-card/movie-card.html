@@ -1,0 +1,20 @@
+<article class="overflow-hidden rounded-lg bg-white shadow">
+  @if (poster(); as src) {
+    <img
+      [src]="src"
+      [alt]="movie().title"
+      loading="lazy"
+      class="aspect-[2/3] w-full object-cover"
+    />
+  } @else {
+    <div class="flex aspect-[2/3] w-full items-center justify-center bg-slate-200 text-slate-500">
+      No poster
+    </div>
+  }
+  <div class="p-3">
+    <h2 class="text-base font-semibold text-slate-900">{{ movie().title }}</h2>
+    <p class="mt-1 line-clamp-3 text-sm text-slate-600">
+      {{ movie().overview || 'No description available.' }}
+    </p>
+  </div>
+</article>

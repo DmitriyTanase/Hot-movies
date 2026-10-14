@@ -1,280 +1,238 @@
-# Task Handoff — T2: TMDb Data and List-State Layer
+# Task Handoff — T3: Movie List, Search, Card, and Real TMDb List Integration
 
-- **Architecture:** `.claude/docs/architecture-proposal.md` (APPROVED — Gate #1, 2026-10-14). Sections that apply: 0, 2.3, 2.6, 2.7, 4, 5, 6, 7, 8, 9 (service-side guarantees only), 12, 13, 15, 16 (D2, D5, D6), 17 (service-level rows), 18 (items 2–3).
-- **Requirements source:** `.claude/context/assignment.md` → "Функциональные требования → 1. Работа с API".
+- **Architecture:** `.claude/docs/architecture-proposal.md` (APPROVED — Gate #1). The sections that apply:
+  - 3 — ambiguities: dynamic search, button + typing, Back;
+  - 4 — layout;
+  - 5.2 and 6 — list state and ownership;
+  - 7 — idle start, `loadList()`;
+  - 8 — Signals/RxJS boundary;
+  - 9 — search behaviour (authoritative for MovieSearch);
+  - 10 — component boundaries (authoritative for MovieList, MovieSearch and MovieCard);
+  - 11 — routing (list route only in T3);
+  - 14 — states and UI;
+  - 17 — testing (MovieList, MovieSearch and MovieCard rows);
+  - 18.8 — skeleton flash, accepted.
+- **Requirements:** `.claude/context/assignment.md`, sections 2, 3 and 5 (Список фильмов, Поиск фильмов, UI и стилизация). Also the general "Обязательно использовать" list: Signals, Tailwind, standalone components, `@if`/`@for`/`@switch`.
+- **Existing contract (T2, committed in `5ddcaa4`). Use it as is and do not modify it:**
+  - `src/app/movies/movie.service.ts`:
+    - signals: `querySignal`, `moviesSignal`, `loadingSignal`, `errorSignal`;
+    - commands: `loadList()`, `setQuery(keyword)`, `reloadList()`.
+  - `src/app/movies/movie.ts`: `Movie`.
+  - `src/app/movies/tmdb.ts`: `posterUrl(path, 'w342' | 'w500')`.
 - **Owner:** Developer.
-- **Scope:** the data/state layer only. **No movie UI, no routes.**
 
 ---
 
 ## Goal
 
-Implement `MovieService` and its supporting files exactly as described in architecture §4, §5 and §12:
+Build the routed home page:
 
-- the three typed TMDb HTTP methods;
-- the `rxResource`-driven list state, exposed as signals;
-- error normalization.
+- `MovieList` shows popular movies or search results from `MovieService`;
+- `MovieSearch` handles debounced and immediate search;
+- `MovieCard` shows a single movie.
 
-Add focused unit tests for the service contract. The full chain from `environment.local.ts` to the `Authorization` header is verified **manually by the human** (Technical Notes §3), because the human-owned local file must not be touched. Do not commit.
+Show loading, error and empty states, in a responsive Tailwind grid. The component state must not duplicate the service state. Do not commit.
 
-## Human-Owned Local File (`src/environments/environment.local.ts`)
+## Human-Owned Local File (carried forward from T2)
 
-This file exists. It holds the human's real TMDb token, and Git ignores it. It is human-owned local configuration. The Developer must **not**:
+`src/environments/environment.local.ts` holds the human's real token, and Git ignores it. The Developer and the Reviewer must **not**:
 
-- read, open, print, `cat`, `grep`, Glob-match into, hash, copy, move, rename, overwrite or delete it;
-- include its contents, or the real token, in context, logs, tests, fixtures or the completion report;
-- run anything that compiles it:
-  - `npm run start:local`;
-  - `ng serve` or `ng build` with `--configuration local`;
-  - `ng test` with `--build-target=…:local`;
-- search `dist/` or `.angular/` for token strings.
+- read, open, `cat`, `grep`, Glob into, hash, copy, move, overwrite or delete it;
+- expose its contents anywhere;
+- run `npm run start:local`, `--configuration local` or `--build-target=…:local`;
+- search `dist/` or `.angular/`.
 
-Recursive searches over `src/` must exclude this file (`--exclude=environment.local.ts`) or be limited to `src/app`. Only metadata checks that do not read the contents are allowed: `ls`, `stat -c '%s %Y'`, `git check-ignore`, `git status`.
+Limit recursive searches to `src/app`. Only `ls`, `stat -c '%s %Y'`, `git check-ignore` and `git status` are allowed on it. The real-token browser check is **human-only** (see Manual Browser Verification).
 
 ## Preconditions
 
-- T1 is in the working tree: Angular 22.2.2, Vitest, ESLint, Prettier, the `local` build/serve configuration, and the `.gitignore` rule for `src/environments/environment.local.ts`.
-- These baseline commands pass before any change:
-  - `npm run build`
-  - `npm test -- --watch=false`
-  - `npm run lint`
-  - `npm run format:check`
-
-  If any fails, STOP and report.
-- Record the metadata of the human-owned file with `stat -c '%s %Y' src/environments/environment.local.ts` (size and mtime only).
-- Confirm `git check-ignore -v src/environments/environment.local.ts` shows the ignore rule.
-
-If the file is absent, do not create it. Report that and continue, because T2 does not need it.
+- `git status` is clean, apart from this handoff file.
+- `npm run build`, `npm test -- --watch=false`, `npm run lint` and `npm run format:check` pass. If any fails, STOP.
+- Record `stat -c '%s %Y' src/environments/environment.local.ts` (metadata only).
+- **Test path:** `npm test -- --watch=false` is the authoritative test command. Its output must show `Using Vitest configuration file: …vitest-base.config.mjs`, which means `fsModuleCache` is off. Do not bypass it with one-off runner configs or flags. If results ever look stale, STOP and report; do not work around it.
 
 ## In Scope
 
-All new files go in `src/app/movies/`:
+- **Components, under `src/app/movies/` with 2025 naming:**
+  - `movie-list/movie-list.{ts,html}`
+  - `movie-search/movie-search.{ts,html}`
+  - `movie-card/movie-card.{ts,html}`
+  - optional `.css` files only if Tailwind classes cannot do the job.
+- **Routes in `src/app/app.routes.ts`:**
+  - `''` → `loadComponent` `MovieList`, with title `'HOT Movies'`;
+  - `'**'` → `redirectTo: ''`.
 
-1. **`movie.ts`:** `Movie`, `MovieDetails` and `TmdbPage<T>`, exactly as in §12. Only the fields listed there.
-2. **`tmdb.ts`:**
-   - the API base URL `https://api.themoviedb.org/3`;
-   - the image base URL `https://image.tmdb.org/t/p/`;
-   - `posterUrl(path: string | null, size: 'w342' | 'w500'): string | null`, which returns `null` for a `null` path.
-3. **`error-message.ts`:** `errorMessage(err: unknown): string` with the four cases and exact strings in §12.
-   - It unwraps `err.cause` when the resource wraps the error.
-   - It finds the `HttpErrorResponse` status: 401, 404, 0, otherwise the generic message.
-4. **`movie.service.ts`** (`@Injectable({ providedIn: 'root' })`), per §5.1 and §5.2:
-   - `getPopularMovies(): Observable<Movie[]>`, `searchMovies(keyword: string): Observable<Movie[]>` and `getMovieDetails(id: number): Observable<MovieDetails>`.
-     - URLs and query parameters exactly as in the §5.1 table.
-     - Use `HttpParams` / the `params` option so the keyword is encoded. Do not concatenate strings.
-     - The list methods `map(r => r.results)`.
-   - One private `HttpHeaders` constant: `Authorization: Bearer ${environment.tmdbAccessToken}`, imported from `src/environments/environment`.
-   - The list state as written in §5.2:
-     - a private `query` signal (`string | undefined`, starting as `undefined`);
-     - a private `list` `rxResource`;
-     - `querySignal`, `moviesSignal`, `loadingSignal` and `errorSignal`;
-     - `loadList()`, `setQuery(keyword)` and `reloadList()`.
-5. **Specs:**
-   - `movie.service.spec.ts` and `error-message.spec.ts` are required.
-   - A two-case `tmdb.spec.ts` for `posterUrl` is optional.
-6. **Hand-off of the local-token check:** the Developer does not run it. The completion report repeats the manual procedure in Technical Notes §3 for the human.
+  These follow §11 exactly, minus the detail route (T4).
+- **Focused specs** for the three components (see Tests).
 
 ## Out of Scope
 
-Do not create or change any of the following:
+- **Detail:** `MovieDetail`, the `movie/:id` route, any detail placeholder, and detail API use.
+- **`app.config.ts` changes:** `withComponentInputBinding()` and `withInMemoryScrolling()` serve the detail page and arrive in T4.
+- **Excluded features:** pagination, URL-synchronized search, SSR.
+- **Excluded tools:** new state abstractions, NgRx or SignalStore, any new dependency, `effect()`, `toSignal`, `toObservable`, `linkedSignal`, Signal Forms.
+- **Files T3 must not touch:**
+  - `MovieService`, the types, helpers or their specs;
+  - `app.ts`, `app.html` (the header already exists), `README.md`, `angular.json`, `package.json`, `vitest-base.config.mjs`.
+- **Other:** unrelated refactoring, and visual features the assignment doesn't require.
 
-- **Movie UI and routing:**
-  - `MovieList`, `MovieSearch`, `MovieCard`, `MovieDetail`, or any other movie component, template or styling;
-  - movie routes and `app.routes.ts` changes;
-  - `app.config.ts` changes, including `withComponentInputBinding` and `withInMemoryScrolling`, which come later.
-- **Other components' state:**
-  - the details `rxResource`, which is component-local in `MovieDetail` (§6, D4);
-  - debounce and timers, which belong to `MovieSearch` (§9).
-- **Behaviour the architecture excludes:**
-  - pagination, URL-synchronized search, SSR;
-  - NgRx, SignalStore or any other state library;
-  - facade, repository, API-client, interceptor, mapper or use-case layers;
-  - an `InjectionToken` for the token.
-- **Signal patterns the architecture rules out:**
-  - `effect()`, `toSignal`, `toObservable`, `linkedSignal`, `httpResource`.
-- **Unrelated files:**
-  - the README, `angular.json`, `package.json` or any dependency;
-  - unrelated scaffold cleanup, including `.vscode/launch.json`.
+## Component Responsibilities (§10; the architecture is authoritative)
 
-## Implementation Constraints
-
-- **Signals and RxJS:**
-  - Signals hold the application state. RxJS is used only for the `HttpClient` return values.
-  - `rxResource` is the only bridge between them (§8). It must call `getPopularMovies()` / `searchMovies()`; do not issue separate HTTP calls from the resource.
-- **Idle start:**
-  - Constructing `MovieService` must send **no** request (§7).
-  - `loadList()` sets the query to `''` only while it is still `undefined`. After that it is a no-op.
-- **Query handling:**
-  - `setQuery()` trims the keyword. `''` means popular.
-  - Use default signal equality, so an equivalent effective query sends no new request (§9).
-  - `setQuery()` must not set a custom `equal` and must not add extra dedupe logic.
-- **Derived signals:**
-  - `moviesSignal` is derived through a `hasValue()` guard. Never read `value()` in the error state (§2.6, §18.2).
-  - `errorSignal` is `string | null` and comes from `errorMessage()`.
-  - `loadingSignal` is `list.isLoading`.
-- **Cancellation:** use the resource's native abort on parameter change. No manual `switchMap`, no request IDs, no subjects.
-- **HTTP provider:** do **not** add `provideHttpClient()` to the app config, because v21+ provides it by default (§4, §15). Tests use `provideHttpClient()` together with `provideHttpClientTesting()`.
-- **Missing or invalid token**, handled as in §13.5:
-  - with no client-side pre-check or short-circuit, the request is still sent;
-  - TMDb's 401 maps to "TMDb access token is missing or invalid. See README → Setup.";
-  - do not throw at construction.
-- **Credentials:**
-  - no real token in any file, test, fixture, log, comment or report;
-  - never describe the token as secret.
-- **Conventions:** follow the scaffold conventions — 2025 file naming, `inject()`, no explicit `changeDetection`, strict types, no `any`.
-
-## Tests (Developer-written, focused; for this task only)
-
-Resolved Decision 1 authorizes the Developer to write these tests. Use these tools:
-
-- Vitest;
-- `TestBed`, `provideHttpClient()`, `provideHttpClientTesting()`, `HttpTestingController`;
-- flush resource loads with `TestBed.tick()` (or `await` stability) before asserting (§17, §18.3);
-- `httpMock.verify()` in `afterEach`.
-
-The specs run against the committed `environment.ts` (empty token), using the default `ng test` build target (`development`, which has no file replacement). No spec may depend on `environment.local.ts` or on the real token.
-
-**`movie.service.spec.ts` must cover:**
-
-| # | Behaviour |
+| Component | Contract |
 |---|---|
-| 1 | `getPopularMovies()`: GET `…/movie/popular` with `language=en-US` and `page=1`. It returns `results` as `Movie[]` |
-| 2 | `searchMovies('star wars')`: GET `…/search/movie` with `query=star wars` (read from `req.request.params`), `include_adult=false`, `language=en-US`, `page=1`. It returns `results` |
-| 3 | `getMovieDetails(42)`: GET `…/movie/42` with `language=en-US`. It returns the body as `MovieDetails` |
-| 4 | The `Authorization` header equals `` `Bearer ${environment.tmdbAccessToken}` `` on all three methods |
-| 5 | **Missing token:** with the committed empty token the request is still sent, with header `'Bearer '`. A 401 response sets `errorSignal` to the exact missing-token message |
-| 6 | **Idle:** after constructing the service and ticking, there is no request. `moviesSignal()` is `[]`, `loadingSignal()` is `false`, `errorSignal()` is `null` and `querySignal()` is `''` |
-| 7 | **Initial load:** `loadList()` sends one popular request. While it is pending, `loadingSignal()` is `true`. After the flush, `moviesSignal()` holds the results and `loadingSignal()` is `false` |
-| 8 | A second `loadList()`, including after a search, sends no request and keeps the current query |
-| 9 | **Search transition:** `setQuery('bat')` sends a search request, and `querySignal()` is `'bat'`. After the flush, `moviesSignal()` holds the search results |
-| 10 | **Whitespace and clear:** `setQuery('   ')` or `setQuery('')` after a search sends a popular request, and `querySignal()` is `''` |
-| 11 | **Dedupe:** `setQuery('bat')` followed by `setQuery('bat ')` sends exactly one request |
-| 12 | **Stale and cancel:** while the `'bat'` request is pending, `setQuery('batman')` makes the first request `cancelled`. Only the `'batman'` results appear |
-| 13 | **Error:** a 500 response sets `errorSignal` to the generic message, `loadingSignal()` to `false` and `moviesSignal()` to `[]`, with no throw. A following new query clears the error |
-| 14 | **Reload:** `reloadList()` after an error resends the same query's request. On success `errorSignal()` is `null` and the movies are shown |
+| `MovieList` | Injects `MovieService` and calls `loadList()` in its constructor; a return visit is a no-op. Renders `<app-movie-search>`, then exactly one of the states in the next table. The grid uses `@for (m of movies(); track m.id)` with `<app-movie-card [movie]="m" />`. Has an `aria-live="polite"` status line. Reads the service signals directly and does not copy them into local state |
+| `MovieSearch` | Injects `MovieService`. `draft = signal(movieService.querySignal())`, seeded once. Holds one pending-timer field, cleared with `DestroyRef.onDestroy`. Uses a `role="search"` `<form>` with a visually hidden `<label>` (`sr-only`), a text input, a `type="submit"` "Search" button, and a clear button (×) with an `aria-label`, shown only while `draft()` is not empty |
+| `MovieCard` | `movie = input.required<Movie>()`. **In T3 the card is a non-interactive `<article>`, with no `routerLink`** (Resolved Decision 6). Poster: `posterUrl(poster_path, 'w342')`, `loading="lazy"`, `alt` = title. Without a poster, a 2:3 "No poster" placeholder. Then the title as a heading, and the overview with `line-clamp-3`, or "No description available." when it is empty. **Content is exactly poster, title and overview, with no rating or year** (Resolved Decision 5). Add no link affordances: no `cursor-pointer`, no hover or focus link styling, no `tabindex`, no `role="link"` and no click handler |
 
-**`error-message.spec.ts`:** cover 401, 404, 0, another status (e.g. 500), a non-HTTP error, and an `HttpErrorResponse` wrapped in `{ cause }`.
+## Search Behaviour (§9, exact)
 
-Do not add tests only to increase coverage.
+| Action | Behaviour |
+|---|---|
+| Type non-blank text | `clearTimeout(pending)`, then `pending = setTimeout(() => setQuery(draft()), 300)` |
+| Text becomes empty or whitespace only | `clearTimeout(pending)`, then **immediate** `setQuery('')` (popular) |
+| Search button or Enter (form `submit`) | `preventDefault`, `clearTimeout(pending)`, then **immediate** `setQuery(draft())` |
+| Clear (×) | `draft.set('')`, `clearTimeout(pending)`, then **immediate** `setQuery('')` |
+| Component destroyed | The pending timer is cleared, so no late `setQuery` fires |
 
-## Technical Notes
+- Trimming, dedupe of the same effective query, and cancelling stale requests all stay in `MovieService`. Do not add them in the component.
+- The input stays usable during loading.
 
-### 1. Resource error shape
+## UI / State (§14)
 
-Confirm in the first error test how the resource exposes the stream error, either the raw value or wrapped in `cause`. `errorMessage` must handle both (§12). Report what you observed.
+- **Exactly one state renders,** chosen from the service signals with `@if`/`@else` or `@switch`, in this order:
 
-### 2. Keep the spec independent of the token value
+  | Condition | Shows |
+  |---|---|
+  | `errorSignal()` | The error message and a "Retry" button that calls `reloadList()` |
+  | `loadingSignal()` | A skeleton grid with `aria-busy="true"` |
+  | No movies, with a query | `No movies found for "<query>".` |
+  | No movies, without a query | `No movies available.` |
+  | Otherwise | The grid |
 
-Assert the header by importing `environment` from `src/environments/environment` in the spec; do not hard-code a token. Test 5 is the only one that asserts the literal `'Bearer '`.
+- **Grid:** `grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5`, with a gap and page padding.
+- **Accessibility and styling:**
+  - visible `focus-visible` rings on the input and the buttons;
+  - semantic landmarks (the shell already has `<main>`), and the movie cards as `<article>` elements;
+  - Tailwind v4 utilities only, with no component library.
+- **Card navigation is deferred to T4** (Resolved Decision 6). In T3 cards are not clickable, there is no `movie/:id` route, and no placeholder.
 
-### 3. Local-token verification: MANUAL, human-run
+## Tests (Developer-written and focused; QA validates independently later)
 
-**Why the Developer cannot run it:**
+The Developer is authorized to write focused component tests for the behaviour built in T3. QA keeps feature-level validation. Aim for meaningful behaviour, not a coverage figure.
 
-- Nothing exists in Angular 22.2.2 for pointing `local` at a different temporary file without changing `angular.json`, which is protected:
-  - `ng test` and `ng build` have no CLI flag that overrides `fileReplacements`;
-  - the `unit-test` builder takes only `buildTarget`, and a new configuration would have to be added to `angular.json`.
-- Running the existing `local` configuration would compile the human-owned real token into a Developer-run build or test.
-- A Vitest alias through `runnerConfig` would bypass Angular's `fileReplacements`, so it would not verify the approved path.
+**Tools:**
 
-**What T2 still proves automatically:**
+- `TestBed`;
+- `provideHttpClient()` together with `provideHttpClientTesting()` and `HttpTestingController` (the real `MovieService`);
+- `vi.useFakeTimers()` for the debounce;
+- flush resources with `await TestBed.inject(ApplicationRef).whenStable()`, as T2 established.
 
-- `MovieService` builds its header from `environment.tmdbAccessToken` (test 4, using the imported `environment`).
-- T1 proved that the `local` configuration resolves the replacement.
+Specs use the committed empty-token `environment.ts`.
 
-**Manual procedure (human only, in their own terminal, after T2):**
+- **`movie-search.spec.ts`** (spy on `MovieService.setQuery`):
+  - typing commits only after 300 ms, not before;
+  - several keystrokes give a single commit;
+  - submit and Enter commit immediately, and no second commit follows at 300 ms;
+  - clearing or whitespace commits `''` immediately;
+  - the × button clears the draft and commits `''`;
+  - destroying the component while a timer is pending means no commit;
+  - the draft starts from `querySignal()`.
+- **`movie-list.spec.ts`** (real service with `HttpTestingController`):
+  - creating the component sends one popular request;
+  - the loading skeleton appears;
+  - after the flush, N cards render;
+  - a 500 response shows the error, and Retry sends the request again;
+  - an empty popular result shows "No movies available.";
+  - an empty search shows `No movies found for "x".`
+- **`movie-card.spec.ts`:**
+  - poster `src` and `alt` versus the placeholder;
+  - overview versus the fallback text;
+  - the card renders no `<a>` or `href` and is not focusable (it is non-interactive in T3);
+  - no rating or year text appears.
+- **`app.spec.ts`:** keep it passing. Edit it only if the new routes require it.
 
-- **A, optional, available after T2:**
-  - Run `npx ng test --watch=false --build-target=hot-movies:build:local --include=src/app/movies/movie.service.spec.ts`.
-  - Expected result: **only test 5** (the literal `'Bearer '` assertion) fails, and all the other tests pass.
-  - That shows `environment.local.ts` replaced `environment.ts` and that its token reached the `Authorization` header.
-  - The failure diff prints the real header value. Do not paste that output into chat, agents or files.
-- **B, the required end-to-end check, at the first task where `MovieList` calls `loadList()` (T3):**
-  - Run `npm run start:local` and open the app.
-  - The popular movies load (HTTP 200), and DevTools → Network → `movie/popular` → Request Headers shows `Authorization: Bearer …`.
-  - Then run `npm start` (empty token) and confirm the mapped "TMDb access token is missing or invalid" message appears.
+## Manual Browser Verification (HUMAN ONLY; the Developer documents it and does not run it)
 
-## Validation (report each result)
+1. Run `npm run start:local` and open `http://localhost:4200`.
+2. **Real token, end to end** (this closes the T2 manual check B):
+   - popular movies load;
+   - DevTools → Network → `movie/popular` shows a 200 response and an `Authorization: Bearer …` header. Do not copy the header anywhere.
+3. **Typing:** type `bat`. A single `search/movie` request goes out about 300 ms after the last keystroke.
+4. **Immediate search:** type `batman` and press Enter right away. One request goes out at once, with no second request 300 ms later. Repeat with the Search button.
+5. **Clear:** select all and delete. Popular returns immediately. Do the same with `"   "` and with the × button.
+6. **Cancellation:** in DevTools, use network throttling (Slow 3G). Type `star`, wait, then type `star wars`. The earlier request shows as cancelled, and only the `star wars` results appear.
+7. **Empty search:** search `zzzzzzzzqx`. The page shows `No movies found for "zzzzzzzzqx".`
+8. **Error:** in DevTools, go Offline and press Retry or search. The network error message and Retry appear. Go back Online and press Retry: it recovers.
+9. **Missing token:** stop the server and run `npm start` (empty token). The page shows "TMDb access token is missing or invalid. See README → Setup."
+10. **Layout and keyboard:**
+    - resize to about 375 px, then 768 px, then 1280 px; the grid goes 2, 3/4, then 5 columns;
+    - tab through the input, the Search button and the × button; the focus rings are visible;
+    - the cards are not tab stops and do not look clickable (navigation arrives in T4).
 
-1. Preconditions: the baseline commands, plus the human-owned file's `stat` metadata and its `git check-ignore` line.
-2. `npm run build`: PASS. This is the default production configuration, with no file replacement.
-3. `npm test -- --watch=false`: PASS. List the spec files and test counts.
-4. `npm run lint`: PASS.
-5. `npm run format:check`: PASS.
-6. **Human-owned file unchanged:**
-   - `stat -c '%s %Y' src/environments/environment.local.ts` matches the precondition values;
-   - `git check-ignore -v src/environments/environment.local.ts` still shows the ignore rule;
-   - `git status --short --ignored src/environments` lists it only as ignored (`!!`).
-7. `git status --short`: only the allowed files are new. The only modified file is `.claude/context/task-handoff.md`, which was changed before T2.
-8. `git diff --stat`: no tracked application file changed.
-9. `grep -rnE "effect\(|toSignal|toObservable|linkedSignal|httpResource|provideHttpClient\(" src/app --include=*.ts`: matches only `provideHttpClient(` in the spec files.
+## Validation (the Developer runs and reports each)
+
+1. Preconditions, including the human-owned file's `stat`.
+2. `npm run build`: PASS. Report the lazy chunk for `movie-list`.
+3. `npm test -- --watch=false`: PASS. Report the config log line, the list of spec files and the test counts.
+4. `npm run lint` and `npm run format:check`: PASS.
+5. `grep -rnE "effect\(|toSignal|toObservable|linkedSignal|httpResource" src/app --include=*.ts`: no matches.
+6. `grep -rn "PROBE\|SHAPE\|console\." src/app`: no matches.
+7. The human-owned file's `stat` is unchanged, and `git check-ignore -v` still shows the ignore rule.
+8. `git status --short` and `git diff --stat`: only the expected files.
 
 ## Acceptance Criteria
 
-1. The four source files exist in `src/app/movies/` and match architecture §5 and §12 in names, signatures, URLs, parameters and messages.
-2. The three methods return typed, cold Observables carrying the Bearer header. They hold no state.
-3. The list resource starts idle and no request is sent at construction. `loadList()` starts popular only once.
-4. `setQuery` trims and deduplicates through signal equality. `''` and whitespace mean popular. A query change cancels the in-flight request, so stale results cannot appear.
-5. `moviesSignal`, `loadingSignal`, `errorSignal` and `querySignal` are derived from the resource or query exactly as in §5.2. The error state never throws.
-6. `reloadList()` refetches the current query.
-7. An empty or invalid token produces the mapped 401 message. There is no pre-check and no construction-time throw (Resolved Decision 2).
-8. All the test rows above are implemented and pass against the committed empty-token `environment.ts`.
-9. **Local-token check, marked "Requires manual verification":**
-   - the completion report repeats the §3 procedure;
-   - the Developer runs nothing that compiles `environment.local.ts`.
-10. Build, test, lint and format:check all pass.
-11. **The human-owned `environment.local.ts`:**
-    - still exists, with unchanged size and mtime;
-    - is still ignored by Git;
-    - was never read, and its contents appear nowhere in the context or the report.
-12. Only the allowed files changed. There are no new dependencies, no `app.config.ts` or `app.routes.ts` changes, and no real token in any file, test or report.
+1. The three components exist, are standalone, use `@if`/`@for`/`@switch`, have no explicit `changeDetection`, and use `inject()`.
+2. `MovieList` calls `loadList()`. No request is sent before `MovieList` is created. Movies, loading and error come only from the `MovieService` signals.
+3. `MovieSearch` matches the §9 table exactly (300 ms debounce; immediate submit, Enter, clear and empty; timer cleared on destroy), and none of the service logic is duplicated.
+4. Each card shows the poster or placeholder, the title, and the overview or its fallback, and nothing else. The card is a non-interactive `<article>`: no `routerLink`, no link styling, and not focusable.
+5. The loading, error with Retry, the two exact empty messages, and the grid states render as described.
+6. The routes are exactly `''` (lazy `MovieList`, title `'HOT Movies'`) and `'**'` → `''`. `app.config.ts` is unchanged.
+7. The grid is responsive, the controls are accessible, and the focus rings are visible.
+8. All the T3 specs pass through the normal configured test command, with build, lint and format:check also passing.
+9. The human-owned file was not touched. There is no new dependency and no file outside Expected Files changed.
+10. The manual verification steps are listed in the completion report and marked "Requires human verification".
 
-## Allowed Files
+## Expected Files
 
 - **Create:**
-  - `src/app/movies/movie.ts`
-  - `src/app/movies/tmdb.ts`
-  - `src/app/movies/error-message.ts`
-  - `src/app/movies/movie.service.ts`
-  - `src/app/movies/movie.service.spec.ts`
-  - `src/app/movies/error-message.spec.ts`
-  - `src/app/movies/tmdb.spec.ts` (optional)
-- **Temporary files:** none.
-- **Human-owned, untouchable:** `src/environments/environment.local.ts`. See the section above.
-- **Protected (do not modify):**
-  - `CLAUDE.md`, `.claude/**`, `docs/**`, `.gitattributes`
-  - `README.md`, `angular.json`, `package.json`, `package-lock.json`
-  - `src/environments/environment.ts`
-  - `src/app/app.*` and every other existing file
+  - `src/app/movies/movie-list/movie-list.ts`, `movie-list.html` and `movie-list.spec.ts`
+  - `src/app/movies/movie-search/movie-search.ts`, `movie-search.html` and `movie-search.spec.ts`
+  - `src/app/movies/movie-card/movie-card.ts`, `movie-card.html` and `movie-card.spec.ts`
+- **Modify:** `src/app/app.routes.ts`, plus `src/app/app.spec.ts` only if needed.
+- **Everything else is protected,** including `app.config.ts`, the T2 files, the configuration files and `.claude/**`.
 
-## Stop Conditions (stop and report; do not improvise)
+## Stop Conditions
 
-- A baseline precondition fails.
-- Any step would read, overwrite, compile or otherwise expose the human-owned `environment.local.ts`.
-- An approved API behaves differently from §2.3 or §2.6 in Angular 22.2.2, for example:
-  - `rxResource` does not start idle when `params` is `undefined`;
-  - `rxResource` does not abort on a parameter change;
-  - `HttpClient` cannot be injected without `provideHttpClient()`.
-- Meeting a criterion would need a file outside Allowed Files, a new dependency, an `angular.json` change, or a pattern listed as out of scope.
-- The same issue fails two review/fix cycles (CLAUDE.md §10).
+- A precondition fails, or the test path stops using `vitest-base.config.mjs`.
+- A criterion needs a T2 file change, an `app.config.ts` change, a new dependency, or a pattern listed as out of scope.
+- Any step would touch or compile `environment.local.ts`.
+- Angular 22.2.2 behaves differently from the architecture, for example signal inputs, `DestroyRef` or resource flushing in tests.
+- The same issue fails two review/fix cycles.
 
 ## Completion Report
 
-Use the format in `.claude/agents/developer.md` (Summary, Changed Files, Key Implementation Decisions, Validation, Deviations, Risks / Follow-up, Git Status). Also include:
+Use the `developer.md` format (Summary, Changed Files, Key Implementation Decisions, Validation, Deviations, Risks / Follow-up, Git Status). Also include:
 
-- the observed resource error shape (Technical Notes §1);
-- confirmation that no request is sent before `loadList()`;
-- the `stat` and `check-ignore` results for the human-owned file, before and after (metadata only);
-- the local-token check marked **"Requires manual verification"**, with procedures A and B from §3.
+- confirmation that no request is sent before `MovieList` is created;
+- the `stat` of the human-owned file, before and after;
+- the Manual Browser Verification list, marked **"Requires human verification"**.
 
-Never report PASS without execution evidence. Never include token values. Do not commit, push or start T3.
+Never include token values. Do not commit, push or start T4.
 
-## Resolved Decisions (human, 2026-10-14)
+## Resolved Decisions (carried forward)
 
-1. **Test ownership:** for T2 the Developer is explicitly authorized to write the focused unit tests for the data/state contract it implements. QA keeps responsibility for later independent feature and integration validation (architecture §17 otherwise applies).
-2. **Missing or empty token:** the behaviour stays exactly as approved in architecture §13.5. Add no client-side guard only for an empty token. Let the request go out, and normalize TMDb's authentication failure (401) through `errorMessage()`.
-3. **Human-owned local file:** `src/environments/environment.local.ts` holds the human's real token and must not be touched (see the section above). The local file-replacement check is a manual human verification (§3).
+1. **Tests:** the Developer writes focused tests for the behaviour it implements. QA validates features independently later.
+2. **Empty token:** no client guard; TMDb's 401 is mapped by `errorMessage()` (§13.5).
+3. **Local file:** `environment.local.ts` is human-owned and never touched by agents.
+4. **Test path:** the normal `npm test` run with `vitest-base.config.mjs` (`fsModuleCache: false`) is authoritative.
+5. **Card content (human, resolved):** `MovieCard` shows exactly poster, title and overview, per the assignment and architecture §10. It shows no rating and no release year; those stay in `MovieDetail` (T4).
+6. **Card navigation sequencing (human, resolved):**
+   - In T3, **do not** add the whole-card `routerLink`, a placeholder `movie/:id` route, or an early `MovieDetail`.
+   - The card must not look or behave like a link while it is not one.
+   - In T4, the whole-card link to `/movie/:id` (§10) is added together with the real `MovieDetail` route.
+   - This is a sequencing clarification only. The final approved architecture (§10, §11) is unchanged, so do not read §10 as requiring the link in T3.
 
-## Open Questions (for the human)
+## Open Questions
 
 None.

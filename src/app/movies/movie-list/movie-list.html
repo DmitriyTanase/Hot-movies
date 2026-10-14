@@ -1,0 +1,51 @@
+<section class="p-4">
+  <app-movie-search />
+
+  <p class="sr-only" aria-live="polite">
+    @if (error()) {
+      <!-- the error panel's role="alert" announces the message -->
+    } @else if (loading()) {
+      Loading movies.
+    } @else {
+      {{ movies().length }} movies shown.
+    }
+  </p>
+
+  <div class="mt-4">
+    @if (error(); as message) {
+      <div role="alert" class="rounded-md bg-red-50 p-4 text-red-800">
+        <p>{{ message }}</p>
+        <button
+          type="button"
+          (click)="retry()"
+          class="mt-2 rounded-md bg-red-700 px-3 py-1.5 text-white hover:bg-red-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+        >
+          Retry
+        </button>
+      </div>
+    } @else if (loading()) {
+      <div
+        aria-busy="true"
+        class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+      >
+        @for (s of skeletons; track s) {
+          <div class="aspect-[2/3] animate-pulse rounded-lg bg-slate-200"></div>
+        }
+      </div>
+    } @else if (movies().length === 0) {
+      <p class="text-slate-600">
+        @if (query()) {
+          No movies found for "{{ query() }}".
+        } @else {
+          No movies available.
+        }
+      </p>
+    } @else {
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+        @for (m of movies(); track m.id) {
+          <app-movie-card [movie]="m" />
+        }
+      </div>
+    }
+  </div>
+</section>
