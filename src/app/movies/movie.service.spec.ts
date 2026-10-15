@@ -7,7 +7,7 @@ import { Movie, MovieDetails, TmdbPage } from './movie';
 import { MovieService } from './movie.service';
 
 const API = 'https://api.themoviedb.org/3';
-const GENERIC = 'Something went wrong loading movies. Please try again.';
+const GENERIC = 'Something went wrong. Please try again.';
 const TOKEN_MESSAGE = 'TMDb access token is missing or invalid. See README → Setup.';
 
 function movie(id: number, title: string): Movie {

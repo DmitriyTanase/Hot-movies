@@ -19,6 +19,6 @@ export function errorMessage(err: unknown): string {
     case 0:
       return 'Network error. Check your connection.';
     default:
-      return 'Something went wrong loading movies. Please try again.';
+      return 'Something went wrong. Please try again.';
   }
 }

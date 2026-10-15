@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { errorMessage } from './error-message';
 
-const GENERIC = 'Something went wrong loading movies. Please try again.';
+const GENERIC = 'Something went wrong. Please try again.';
 
 describe('errorMessage', () => {
   it('maps 401 to the token message', () => {

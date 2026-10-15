@@ -86,7 +86,7 @@ describe('MovieList', () => {
     await create();
     popular().flush('boom', { status: 500, statusText: 'Server Error' });
     await settle();
-    expect(el.textContent).toContain('Something went wrong loading movies. Please try again.');
+    expect(el.textContent).toContain('Something went wrong. Please try again.');
     expect(el.querySelector('[role="alert"]')?.textContent).toContain('Something went wrong');
     expect(el.querySelector('[aria-live="polite"]')?.textContent?.trim()).toBe('');
 
@@ -137,8 +137,26 @@ describe('MovieList', () => {
       await settle();
       expect(pager()).not.toBeNull();
       expect(el.querySelector('[aria-live="polite"]')?.textContent?.replace(/\s+/g, ' ')).toContain(
-        'Page 1 of 5. 1 movies shown.',
+        'Page 1 of 5. 1 movie shown.',
       );
+    });
+
+    it('uses the plural status text for several movies', async () => {
+      await create();
+      popular().flush(page([movie(1), movie(2)], 5));
+      await settle();
+      expect(el.querySelector('[aria-live="polite"]')?.textContent?.replace(/\s+/g, ' ')).toContain(
+        'Page 1 of 5. 2 movies shown.',
+      );
+    });
+
+    it('uses the singular status text without a page prefix for one movie', async () => {
+      await create();
+      popular().flush(page([movie(1)], 1));
+      await settle();
+      const text = el.querySelector('[aria-live="polite"]')?.textContent?.replace(/\s+/g, ' ');
+      expect(text).toContain('1 movie shown.');
+      expect(text).not.toContain('movies shown');
     });
 
     it('does not move focus on initial load or search', async () => {

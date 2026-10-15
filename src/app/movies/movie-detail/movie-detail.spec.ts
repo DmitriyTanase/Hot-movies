@@ -2,8 +2,8 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { ApplicationRef } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
+import { appConfig } from '../../app.config';
 import { routes } from '../../app.routes';
 import { MovieDetails } from '../movie';
 import { MovieDetail } from './movie-detail';
@@ -56,11 +56,7 @@ describe('MovieDetail', () => {
 
   beforeEach(() => {
     TestBed.configureTestingModule({
-      providers: [
-        provideHttpClient(),
-        provideHttpClientTesting(),
-        provideRouter(routes, withComponentInputBinding()),
-      ],
+      providers: [...appConfig.providers, provideHttpClient(), provideHttpClientTesting()],
     });
     httpMock = TestBed.inject(HttpTestingController);
   });

@@ -10,7 +10,7 @@
       @if (totalPages() > 1) {
         Page {{ page() }} of {{ totalPages() }}.
       }
-      {{ movies().length }} movies shown.
+      {{ movies().length }} {{ movies().length === 1 ? 'movie' : 'movies' }} shown.
     }
   </p>
 
