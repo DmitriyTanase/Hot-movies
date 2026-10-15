@@ -167,6 +167,8 @@ src/app/
 
 ### 5.1 TMDb operations: the three methods the assignment requires
 
+> *T6 note:* superseded for pagination by §22.2. The list methods now take an optional `page` and return `TmdbPage<Movie>`.
+
 | Method | Does | Returns |
 |---|---|---|
 | `getPopularMovies()` | `GET {api}/movie/popular?language=en-US&page=1` | `Observable<Movie[]>` (`map(r => r.results)`) |
@@ -178,6 +180,8 @@ src/app/
 - They hold no state.
 
 ### 5.2 List state: signals in the same service, driven by those methods
+
+> *T6 note:* superseded for pagination by §22.3. The `query` signal became `params: { query, page }`, and `pageSignal`, `totalPagesSignal` and `goToPage()` were added.
 
 ```ts
 // undefined = list not requested yet -> resource idle -> no HTTP
@@ -207,6 +211,8 @@ reloadList(): void { this.list.reload(); }                                // Ret
 - **Three small commands** (`loadList`, `setQuery`, `reloadList`) are the only way the UI changes list state.
 
 ## 6. State Model
+
+> *T6 note:* the "committed list query" state is now `params: { query, page }` (§22.3).
 
 | State | Owner | Lifecycle | Representation |
 |---|---|---|---|
@@ -248,6 +254,8 @@ reloadList(): void { this.list.reload(); }                                // Ret
 
 ## 9. Search Behaviour (resolves revision item 3)
 
+> *T6 note:* for paging, §22.3 refines the dedupe and clear rules. Clear always goes to popular page 1, and the same non-empty query keeps the current page.
+
 `MovieSearch` injects `MovieService`. It holds a `draft = signal(movieService.querySignal())` and one `pendingTimer`.
 
 | User action | Behaviour |
@@ -273,6 +281,8 @@ Guarantees:
 - **Cancellation is in the service resource** because it is a data concern: whoever changes the query, the in-flight request for the old query must die.
 
 ## 10. Component Boundaries
+
+> *T6 note:* `MoviePagination` was added, and `MovieList` renders it below the results (§22.4).
 
 | Component | Inputs / deps | Responsibility |
 |---|---|---|
@@ -385,6 +395,8 @@ Production builds (`npm run build`) intentionally contain no token. A token-bear
 
 ## 14. Error / Loading / Empty States
 
+> *T6 note:* the pager's behaviour during loading and on error is defined in §22.3 and §22.4.
+
 | Situation | List page | Details page |
 |---|---|---|
 | Loading | Skeleton grid, `aria-busy="true"` | Skeleton block |
@@ -471,6 +483,8 @@ Other challenge questions:
 **D8 — Dependencies:** no runtime dependencies beyond Angular, RxJS and Tailwind. Dev-only: angular-eslint and Prettier (accepted).
 
 ## 17. Testing Strategy
+
+> *T6 note:* the paging tests are additions, specified in §22 and the T6 handoff.
 
 Tools:
 
