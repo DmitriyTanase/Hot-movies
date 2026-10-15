@@ -7,11 +7,14 @@
     } @else if (loading()) {
       Loading movies.
     } @else {
+      @if (totalPages() > 1) {
+        Page {{ page() }} of {{ totalPages() }}.
+      }
       {{ movies().length }} movies shown.
     }
   </p>
 
-  <div class="mt-4">
+  <div #results tabindex="-1" class="mt-4 focus:outline-none">
     @if (error(); as message) {
       <div role="alert" class="rounded-md bg-red-50 p-4 text-red-800">
         <p>{{ message }}</p>
@@ -48,4 +51,13 @@
       </div>
     }
   </div>
+
+  @if (totalPages() > 1 && !error()) {
+    <app-movie-pagination
+      [currentPage]="page()"
+      [totalPages]="totalPages()"
+      [disabled]="loading()"
+      (pageChange)="onPageChange($event)"
+    />
+  }
 </section>

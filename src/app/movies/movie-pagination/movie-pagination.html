@@ -1,0 +1,51 @@
+@if (totalPages() > 1) {
+  <nav aria-label="Pagination" class="mt-6">
+    <ul class="flex items-center justify-center gap-1">
+      <li>
+        <button
+          type="button"
+          aria-label="Previous page"
+          [disabled]="disabled() || currentPage() <= 1"
+          (click)="select(currentPage() - 1)"
+          class="cursor-pointer rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span aria-hidden="true">&lsaquo;</span>
+        </button>
+      </li>
+      @for (item of items(); track $index) {
+        @if (item === 'ellipsis') {
+          <li aria-hidden="true" class="px-1 text-slate-500">&hellip;</li>
+        } @else {
+          <li>
+            <button
+              type="button"
+              [attr.aria-label]="'Page ' + item"
+              [attr.aria-current]="item === currentPage() ? 'page' : null"
+              [disabled]="disabled()"
+              (click)="select(item)"
+              class="min-w-8 rounded-md px-2 py-1.5 text-sm hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+              [class]="
+                item === currentPage()
+                  ? 'cursor-default bg-slate-800 font-semibold text-white hover:bg-slate-800'
+                  : 'cursor-pointer text-slate-700'
+              "
+            >
+              {{ item }}
+            </button>
+          </li>
+        }
+      }
+      <li>
+        <button
+          type="button"
+          aria-label="Next page"
+          [disabled]="disabled() || currentPage() >= totalPages()"
+          (click)="select(currentPage() + 1)"
+          class="cursor-pointer rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          <span aria-hidden="true">&rsaquo;</span>
+        </button>
+      </li>
+    </ul>
+  </nav>
+}

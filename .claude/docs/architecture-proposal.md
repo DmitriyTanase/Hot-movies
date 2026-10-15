@@ -24,6 +24,7 @@
 - Vitest.
 - ESLint and Prettier.
 - No pagination. No URL-synchronized search state. No SSR.
+  - *Amended 2026-10-15 (T6):* pagination was later approved as an explicit extension beyond the assignment. See §22. URL sync and SSR remain excluded.
 - TMDb Bearer Read Access Token.
 - Use the pinned Angular CLI through npx, not the global ng (13.3.8).
 - The proposed `ng new` command is approved in principle; a dry run must be performed before actual initialization.
@@ -85,7 +86,7 @@ An Angular SPA on TMDb, built on the latest stable Angular, with:
 |---|---|---|
 | `httpResource` | stable since v22.0 | Rejected, see D2 |
 | `resource` | stable since v22.0 | Would bypass `HttpClient` |
-| `linkedSignal` | stable since v20.0 | No longer needed, see Section 15 |
+| `linkedSignal` | stable since v20.0 | No longer needed, see Section 15. *T6 amendment:* used once, for the derived page count kept during loading (§22.3) |
 | `outputFromObservable` | stable since v19.0 | No longer needed, see Section 15 |
 | Signal Forms `form()` | stable since v22.0 | Unnecessary for one text field |
 | `effect()`, `toSignal`, `toObservable` | stable | Not needed |
@@ -536,3 +537,74 @@ All architecture decisions are resolved (Section 0). Remaining human actions and
 
 - **High:** requirement coverage, the service API, search behaviour, and the deep-link fix.
 - **Medium-High:** resource-specific details (error wrapping, test flushing), to be confirmed by the first service tests.
+
+---
+
+## 22. Amendment A1 — Pagination (T6; APPROVED 2026-10-15)
+
+**History:**
+
+- Gate #1 excluded pagination (§0). The assignment does not require it.
+- The human developer approved it later as an explicit extension, for T6 only.
+- Supporting analysis: `.claude/docs/t6-pagination-proposal.md`.
+
+Wherever they conflict on list paging, this section overrides §5.1, §5.2, §6, §9 (dedupe and clear rows), §10, §14 and §17. All other decisions are unchanged:
+
+- no URL sync and no SSR;
+- no state or UI libraries;
+- the list state stays in `MovieService`;
+- the deep-link idle start;
+- details state stays local;
+- the credential strategy.
+
+### 22.1 TMDb paging facts
+
+- **Documented:** `GET /movie/popular` and `GET /search/movie` take an integer `page`, default 1. They return `page`, `results`, `total_pages` and `total_results`.
+- **Documented limit:** error code 22 says "Pages start at 1 and max at 500".
+- **Decision:** `TMDB_MAX_PAGE = 500` lives in `tmdb.ts`. The usable page count is `min(total_pages, TMDB_MAX_PAGE)`. Page 501 or higher is never shown or requested.
+- **Assumptions:** the limit applies to both endpoints, `total_pages` may exceed 500 or be 0, and popular's totals may drift.
+
+### 22.2 API contract (H2)
+
+- `getPopularMovies(page = 1): Observable<TmdbPage<Movie>>`.
+- `searchMovies(keyword: string, page = 1): Observable<TmdbPage<Movie>>`.
+- `getMovieDetails` is unchanged.
+- The full `TmdbPage<Movie>` (existing type) is returned. There is no app-level page DTO and no mapping.
+
+### 22.3 List state
+
+- **Request state:** `params = signal<{ query: string; page: number } | undefined>(undefined)`.
+  - `undefined` means idle, so a deep link sends no request (§7 is unchanged).
+  - The commands check before setting `params`, so no custom `equal` is needed.
+- **Resource:** `rxResource({ params: () => params(), stream: ({params: {query, page}}) => query ? searchMovies(query, page) : getPopularMovies(page) })`. A change to `params` aborts the in-flight request, as before.
+- **Derived signals:**
+  - `querySignal`;
+  - `pageSignal`: the requested page;
+  - `moviesSignal`: `results`, or `[]`;
+  - `loadingSignal`, `errorSignal`: unchanged;
+  - `totalPagesSignal`: the usable page count.
+- **`totalPagesSignal` (H4, modified):** a `linkedSignal` derived from the query, the loaded `total_pages` and the error state. This is the only use of `linkedSignal`. It is derived rather than written by hand, and needs no `effect()`.
+  - When loaded, it is `min(total_pages, 500)`.
+  - While loading for the **same** query, it keeps the previous value, so the pager stays visible but disabled.
+  - On a query change it is 0 until the new metadata arrives.
+  - On error it is 0.
+- **Commands:**
+  - `loadList()`: unchanged.
+  - `setQuery(keyword)`: `''` always becomes popular page 1. The same non-empty query is a no-op that keeps the page (H3). A new query goes to page 1.
+  - `goToPage(page): boolean`: valid only for an integer page in `1..totalPagesSignal()` that differs from the current page, and only while loaded with no error. Otherwise it is a no-op and returns `false`.
+  - `reloadList()`: retries the same query and page.
+
+### 22.4 `MoviePagination` (§10 addition)
+
+- **Purpose:** presentation-only. It knows nothing of TMDb, `MovieService`, HTTP or queries.
+- **API:** `currentPage = input.required<number>()`, `totalPages = input.required<number>()`, `disabled = input(false)`, `pageChange = output<number>()`. It emits only valid pages that differ from the current page.
+- **Markup:** `<nav aria-label="Pagination">` containing native `<button>`s. Previous and Next are disabled at the ends. The current page has `aria-current="page"`. The ellipsis is `aria-hidden`. It renders nothing when `totalPages ≤ 1`.
+- **Window:** a pure `pageWindow(current, total)` with one sibling (H5) and 7 slots, as in the proposal §5.2. For example 10/500 gives `1 … 9 10 11 … 500`.
+- **Placement:** `MovieList` renders it below the results while `totalPagesSignal() > 1` and there is no error, with `disabled` bound to `loadingSignal()`.
+- **Focus (H7):** an accepted user page change (`goToPage` returns `true`) focuses the results region (`tabindex="-1"`). It is an imperative call in the event handler, not an `effect()`. Focus does not move on initial load, search, Retry or return from details.
+
+### 22.5 Unchanged guarantees
+
+- Back from details: `loadList()` is a no-op, so the query, page and results are kept with no refetch.
+- A deep link to `/movie/:id` sends no list request.
+- The 300 ms debounce and timer cancellation (§9) still apply. Clear clears the pending timer before `setQuery('')`.
